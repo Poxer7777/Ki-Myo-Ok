@@ -1,5 +1,4 @@
-using JetBrains.Annotations;
-using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class SensingSystem : MonoBehaviour
@@ -9,16 +8,31 @@ public class SensingSystem : MonoBehaviour
     [SerializeField] private LayerMask obstacleMask;
 
     // TEST
-    public GameObject targetObject;
+    [SerializeField] private GameObject[] targetObjects;
+    private List<GameObject> visibleObjects = new List<GameObject>();
 
     private void Awake()
     {
         playerCamera = GetComponent<Camera>();
     }
 
+    private void Update()
+    {
+        foreach (GameObject target in targetObjects)
+        {
+            if (target == null)
+                continue;
+
+            if (CanSeeObject(target))
+            {
+                visibleObjects.Add(target);
+            }
+        }
+    }
+
     public bool CanSeeObject(GameObject target)
     {
-        Renderer targetRenderer = target.GetComponent<Renderer>();
+        Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
 
         if (targetRenderer == null)
         {
@@ -29,33 +43,30 @@ public class SensingSystem : MonoBehaviour
         Bounds bounds = targetRenderer.bounds; // Object의 범위
         Vector3 cameraPosition = playerCamera.transform.position; // 카메라의 위치
 
-        // 1. Out of Sight
-        Plane[] frustumPlanes = GeometryUtility.CalculateFrustumPlanes(playerCamera);
-
-        if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds))
-        {
-            Debug.Log("Object가 화면 범위 밖에 있습니다.");
-            return false;
-        }
-
-        // 2. Distance Check
+        // 1. 이상현상이 거리 내에 있는지 Check
         Vector3 closestPoint = bounds.ClosestPoint(cameraPosition); // Object 범위 중 가장 가까운 점(Point)
         float distance = Vector3.Distance(cameraPosition, closestPoint);
 
         if (distance > maxDistance)
         {
-            Debug.Log("Object가 감지 거리 밖에 있습니다.");
             return false;
         }
 
-        // 3. 'Object is hidden' Check
+        // 2. 이상현상이 플레이어 화면 범위 내에 있는지 Check
+        Plane[] frustumPlanes = GeometryUtility.CalculateFrustumPlanes(playerCamera);
+
+        if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds))
+        {
+            return false;
+        }
+
+        // 3. 이상현상이 다른 오브젝트에 의해 가려지는지 Check
         Vector3 targetPoint = bounds.center;
         Vector3 direction = targetPoint - cameraPosition;
         float targetDistance = direction.magnitude;
 
         if (!HasLineOfSight(bounds))
         {
-            Debug.Log("Object가 가려져있습니다.");
             return false;
         }
 
@@ -82,10 +93,5 @@ public class SensingSystem : MonoBehaviour
         }
 
         return false;
-    }
-
-    private void Update()
-    {
-        CanSeeObject(targetObject);
     }
 }
